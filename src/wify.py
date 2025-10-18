@@ -26,4 +26,4 @@ def conectar():
         return True
     else:
         print("Fallo al conectar.")
-        return False
+        return False 
