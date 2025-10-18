@@ -1,0 +1,78 @@
+import time
+import machine
+import onewire
+import ds18x20
+import json
+from umqtt.robust import MQTTClient
+import wifi   # Importa tu archivo wifi.py
+
+# === Conexión WiFi ===
+if not wifi.conectar():
+    print("Error: no se puede continuar sin conexión WiFi")
+    while True:
+        time.sleep(1)
+
+# === Configuración de sensores DS18B20 ===
+pin_sensor1 = machine.Pin(14)
+ow1 = onewire.OneWire(pin_sensor1)
+sensor1 = ds18x20.DS18X20(ow1)
+roms1 = sensor1.scan()
+print("Sensores en pin 14:", roms1)
+
+pin_sensor2 = machine.Pin(27)
+ow2 = onewire.OneWire(pin_sensor2)
+sensor2 = ds18x20.DS18X20(ow2)
+roms2 = sensor2.scan()
+print("Sensores en pin 27:", roms2)
+
+if not roms1 and not roms2:
+    print("No se detectaron sensores DS18B20")
+
+# === Configuración MQTT ===
+MQTT_BROKER = "10.72.94.165"
+MQTT_PORT = 1883
+MQTT_CLIENT_ID = "esp32_sensor_temp_dual"
+MQTT_TOPIC_TEMP1 = b"micro/temperatura/sensor1"
+MQTT_TOPIC_TEMP2 = b"micro/temperatura/sensor2"
+
+# === Conectar al broker MQTT ===
+client = MQTTClient(MQTT_CLIENT_ID, MQTT_BROKER, port=MQTT_PORT)
+client.connect()
+print("Conectado al broker MQTT")
+
+# === Archivo JSON donde se guardarán las lecturas ===
+json_filename = "temperaturas.json"
+
+# === Bucle principal ===
+while True:
+    datos = {}
+
+    # Sensor 1
+    sensor1.convert_temp()
+    time.sleep_ms(750)
+    for rom in roms1:
+        temp1 = sensor1.read_temp(rom)
+        print("Sensor 1 (pin 14): {:.2f} °C".format(temp1))
+        msg1 = "{:.2f}".format(temp1)
+        client.publish(MQTT_TOPIC_TEMP1, msg1)
+        datos["sensor1"] = temp1
+
+    # Sensor 2
+    sensor2.convert_temp()
+    time.sleep_ms(750)
+    for rom in roms2:
+        temp2 = sensor2.read_temp(rom)
+        print("Sensor 2 (pin 27): {:.2f} °C".format(temp2))
+        msg2 = "{:.2f}".format(temp2)
+        client.publish(MQTT_TOPIC_TEMP2, msg2)
+        datos["sensor2"] = temp2
+
+    # === Guardar datos en formato JSON ===
+    try:
+        with open(json_filename, "w") as f:
+            json.dump(datos, f)
+        print("Datos guardados en", json_filename, "→", datos)
+    except Exception as e:
+        print("Error al guardar JSON:", e)
+
+    time.sleep(5)
