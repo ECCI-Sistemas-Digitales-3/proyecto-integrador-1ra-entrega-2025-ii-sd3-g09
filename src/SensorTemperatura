@@ -47,7 +47,7 @@ json_filename = "temperaturas.json"
 while True:
     datos = {}
 
-    # Sensor 1
+    # === Sensor 1 ===
     sensor1.convert_temp()
     time.sleep_ms(750)
     for rom in roms1:
@@ -57,7 +57,7 @@ while True:
         client.publish(MQTT_TOPIC_TEMP1, msg1)
         datos["sensor1"] = temp1
 
-    # Sensor 2
+    # === Sensor 2 ===
     sensor2.convert_temp()
     time.sleep_ms(750)
     for rom in roms2:
@@ -67,12 +67,39 @@ while True:
         client.publish(MQTT_TOPIC_TEMP2, msg2)
         datos["sensor2"] = temp2
 
-    # === Guardar datos en formato JSON ===
+    # === Guardar datos en formato JSON (compatible con MicroPython) ===
     try:
+        # Leer contenido anterior
+        try:
+            with open(json_filename, "r") as f:
+                historial = json.load(f)
+            if not isinstance(historial, list):
+                historial = []
+        except:
+            historial = []
+
+        # Agregar nueva lectura
+        lectura = {
+            "sensor1": datos.get("sensor1"),
+            "sensor2": datos.get("sensor2")
+        }
+        historial.append(lectura)
+
+        # Guardar sobrescribiendo archivo
         with open(json_filename, "w") as f:
-            json.dump(datos, f)
-        print("Datos guardados en", json_filename, "→", datos)
+            f.write("[\n")
+            for i, d in enumerate(historial):
+                linea = json.dumps(d)
+                if i < len(historial) - 1:
+                    f.write("  " + linea + ",\n")
+                else:
+                    f.write("  " + linea + "\n")
+            f.write("]")
+
+        print("Lectura guardada correctamente en", json_filename)
+
     except Exception as e:
         print("Error al guardar JSON:", e)
 
     time.sleep(5)
+
